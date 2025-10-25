@@ -4,6 +4,7 @@
 #include <EGL/eglplatform.h>
 #include <GLES2/gl2.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <wayland-client-core.h>
 #include <wayland-client-protocol.h>
@@ -60,6 +61,26 @@ static void on_cfg(void *data, struct zwlr_layer_surface_v1 *s, uint32_t serial,
 static void on_close(void *data, struct zwlr_layer_surface_v1 *s) {
   WL *wl = data;
   wl->run = 0;
+}
+
+// reading file
+char *read_file(const char *path) {
+  FILE *f = fopen(path, "rb"); // binary read mode and return in f pointer
+  if (!f) {
+    return NULL;
+  }
+  fseek(f, 0, SEEK_END); // pointer to end
+  long len = ftell(f);
+  fseek(f, 0, SEEK_SET); // pointer back to beginning
+  char *buf = malloc(len + 1);
+  if (!buf) {
+    fclose(f);
+    return NULL;
+  }
+  fread(buf, 1, len, f);
+  buf[len] = '\0'; // add null terminator here [end]
+  fclose(f);
+  return buf;
 }
 
 // connection to the wayland
@@ -137,11 +158,31 @@ int gl_init(GL *g, WL *w) {
   return 1;
 }
 
-// test blue
-void gl_draw(GL *g) {
-  glClearColor(0.0, 0.0, 1.0, 1.0);
+// // test blue
+// void gl_draw(GL *g) {
+//   glClearColor(0.0, 0.0, 1.0, 1.0);
+//   glClear(GL_COLOR_BUFFER_BIT);
+//   eglSwapBuffers(g->dsp, g->surf);
+// }
+
+void gl_draw(GL *i) {
   glClear(GL_COLOR_BUFFER_BIT);
-  eglSwapBuffers(g->dsp, g->surf);
+  if (wallpaper_tex) {
+    glUseProgram(i->prog);
+    glBindBuffer(GL_ARRAY_BUFFER, i->vbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, i->ebo);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
+                          (void *)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
+                          (void *)(2 * sizeof(float)));
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, wallpaper_tex);
+    glUniform1f(glGetUniformLocation(i->prog, "tex"), 0);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+  }
+  eglSwapBuffers(i->dsp, i->surf);
 }
 
 void gl_quit(GL *g) {
@@ -151,14 +192,63 @@ void gl_quit(GL *g) {
   wl_egl_window_destroy(g->win);
 }
 
-int main() {
+int main(int argc, char **argv) {
   printf("wallski");
+
+  const char *wp = NULL;
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "--set") == 0 && i + 1 < argc) {
+      wp = argv[i + 1];
+      i++;
+    }
+  }
+
   // initliize at NULL and storing every object on their corresponding strucuts
   WL w = {0};
   GL g = {0};
   if (!wl_init(&w) || !gl_init(&g, &w)) {
     return 1;
   }
+
+  /*
+   axis
+   -1 = left, bottom
+    1 - right, top
+    i.e, so lefttop would be -1, 1
+
+  texturemapping
+  1 = right and bottom
+  0 = left and top
+  */
+
+  // at each four
+  float vertices[] = {-1.0f, -1.0f, 0.0f, 1.0f, 1.0f,  -1.0f, 1.0f, 1.0f,
+                      1.0f,  1.0f,  1.0f, 0.0f, -1.0f, 1.0f,  0.0f, 0.0f};
+  unsigned int indicies[] = {0, 1, 2, 2, 3, 0};
+  glGenBuffers(1, &g.vbo);
+  glGenBuffers(1, &g.ebo);
+  glBindBuffer(GL_ARRAY_BUFFER, g.vbo);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g.ebo);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indicies), indicies,
+               GL_STATIC_DRAW);
+
+  // shaders
+  char *vert_src = read_file("../assets/wallpaper.vert");
+  char *frag_src = read_file("../assets/wallpaper.frag");
+  if (!vert_src || !frag_src) {
+    return 1;
+  }
+
+  g.prog = create_program(vert_src, frag_src);
+  free(vert_src);
+  free(frag_src);
+
+  // loading wallpaper
+  if (wp) {
+    gl_load_texture(&g, wp);
+  }
+
   while (w.run) {
     wl_loop(&w);
     gl_draw(&g);

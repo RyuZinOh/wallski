@@ -1,5 +1,7 @@
 #ifndef GRAPHICS_W
 #define GRAPHICS_W
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 #include "wayland_w.h"
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
@@ -11,6 +13,11 @@ typedef struct {
   EGLContext cont;           // open gl context, and states
   EGLSurface surf;           // drawing surface
   struct wl_egl_window *win; // connection of wayland to egl
+
+  GLuint prog;
+  GLuint vao;
+  GLuint vbo;
+  GLuint ebo;
 } GL;
 
 /*
@@ -21,5 +28,64 @@ int gl_init(GL *g, WL *wl);
 // making current context, openegl drawing stuffs, displaying
 void gl_draw(GL *g);
 void gl_quit(GL *g); // destroy egl surface, context, and the window
+
+GLuint wallpaper_tex = 0;
+
+//loading the image from path to openegl as texture
+int gl_load_texture(GL *g, const char *path) {
+  int img_w, img_h, img_ch;
+  unsigned char *pixels = stbi_load(path, &img_w, &img_h, &img_ch, 4);
+  if (!pixels) {
+    fprintf(stderr, "failed to load the image from %s\n", path);
+    return 0;
+  }
+  glGenTextures(1, &wallpaper_tex);
+  glBindTexture(GL_TEXTURE_2D, wallpaper_tex);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, img_w, img_h, 0, GL_RGBA,
+               GL_UNSIGNED_BYTE, pixels);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glBindTexture(GL_TEXTURE_2D, 0);
+
+  stbi_image_free(pixels);
+  return 1;
+}
+//compiling shaders from source code
+GLuint compile_shader(GLenum t, const char *s) {
+  GLuint shader = glCreateShader(t);
+  glShaderSource(shader, 1, &s, NULL);
+  glCompileShader(shader);
+
+  GLint success;
+  glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+  if (!success) {
+    char log[512];
+    glGetShaderInfoLog(shader, 512, NULL, log);
+    fprintf(stderr, "error: %s\n", log);
+  }
+  return shader;
+}
+
+//linking vertex and fragment shader for a usefulness
+GLuint create_program(const char *vsrc, const char *fsrc) {
+  GLuint v = compile_shader(GL_VERTEX_SHADER, vsrc);
+  GLuint f = compile_shader(GL_FRAGMENT_SHADER, fsrc);
+
+  GLuint prog = glCreateProgram();
+  glAttachShader(prog, v);
+  glAttachShader(prog, f);
+  glLinkProgram(prog);
+
+  GLint success;
+  glGetProgramiv(prog, GL_LINK_STATUS, &success);
+  if (!success) {
+    char log[512];
+    glGetShaderInfoLog(prog, 512, NULL, log);
+    fprintf(stderr, "error: %s\n", log);
+  }
+  glDeleteShader(v);
+  glDeleteShader(f);
+  return prog;
+}
 
 #endif // !GRAPHICS_W

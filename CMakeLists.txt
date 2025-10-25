@@ -15,4 +15,5 @@ target_link_libraries(wallski
     wayland-egl
     EGL
     GLESv2
+    m
 )
