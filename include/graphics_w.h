@@ -31,7 +31,7 @@ void gl_quit(GL *g); // destroy egl surface, context, and the window
 
 GLuint wallpaper_tex = 0;
 
-//loading the image from path to openegl as texture
+// loading the image from path to openegl as texture
 int gl_load_texture(GL *g, const char *path) {
   int img_w, img_h, img_ch;
   unsigned char *pixels = stbi_load(path, &img_w, &img_h, &img_ch, 4);
@@ -50,7 +50,7 @@ int gl_load_texture(GL *g, const char *path) {
   stbi_image_free(pixels);
   return 1;
 }
-//compiling shaders from source code
+// compiling shaders from source code
 GLuint compile_shader(GLenum t, const char *s) {
   GLuint shader = glCreateShader(t);
   glShaderSource(shader, 1, &s, NULL);
@@ -66,7 +66,7 @@ GLuint compile_shader(GLenum t, const char *s) {
   return shader;
 }
 
-//linking vertex and fragment shader for a usefulness
+// linking vertex and fragment shader for a usefulness
 GLuint create_program(const char *vsrc, const char *fsrc) {
   GLuint v = compile_shader(GL_VERTEX_SHADER, vsrc);
   GLuint f = compile_shader(GL_FRAGMENT_SHADER, fsrc);
