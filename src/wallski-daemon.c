@@ -298,8 +298,12 @@ int main() {
                GL_STATIC_DRAW);
 
   // shaders
-  char *vert_src = read_file("../assets/wallpaper.vert");
-  char *frag_src = read_file("../assets/wallpaper.frag");
+  /*
+   cp  the project shaders to the relevant directory so it could match here
+   while contributing [note]
+  */
+  char *vert_src = read_file("/usr/share/wallski/assets/wallpaper.vert");
+  char *frag_src = read_file("/usr/share/wallski/assets/wallpaper.frag");
   if (!vert_src || !frag_src) {
     return 1;
   }

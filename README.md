@@ -5,7 +5,7 @@ My own wallpaper engine made on c for wayland compositor
 - so build this or u can use the binary in the project release to use it where u will get a daemon and a client 
 - daemon is used to listen the commands from cilent and do stuff accordinly 
 - run the ``wallski --set <wallpath copied from pwd>`` and if daemon is running along it will do its stuff and ye it is presistant 
-
+[note it is dependent to shaders so copy both of the shader file to ``/usr/share/wallski/assets``]
 
 ### how to setup? [development]
 - wayland protocols , wlroots for necessary headers
