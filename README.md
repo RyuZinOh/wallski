@@ -29,3 +29,9 @@ https://gitlab.freedesktop.org/wlroots/wlr-protocols/-/tree/master/unstable?ref_
 
 ### aiming
 - parallax wallpaper support 
+
+
+### what it looks like?
+https://github.com/user-attachments/assets/c55a0369-c8c2-435f-a8a6-0bfe313bb3e7
+
+
