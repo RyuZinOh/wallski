@@ -29,7 +29,12 @@ int gl_init(GL *g, WL *wl);
 void gl_draw(GL *g);
 void gl_quit(GL *g); // destroy egl surface, context, and the window
 
-GLuint wallpaper_tex = 0;
+// transition globals
+GLuint wallpaper_tex_old = 0;
+GLuint wallpaper_tex_new = 0;
+float transition_progress = 1.0f;
+int transitioning = 0;
+int has_oldtex = 0;
 
 // loading the image from path to openegl as texture
 int gl_load_texture(GL *g, const char *path) {
@@ -39,8 +44,17 @@ int gl_load_texture(GL *g, const char *path) {
     fprintf(stderr, "failed to load the image from %s\n", path);
     return 0;
   }
-  glGenTextures(1, &wallpaper_tex);
-  glBindTexture(GL_TEXTURE_2D, wallpaper_tex);
+  // preserving the old pic
+  if (wallpaper_tex_new != 0) {
+    wallpaper_tex_old = wallpaper_tex_new;
+    has_oldtex = 1;
+  } else {
+    wallpaper_tex_old = 0; // loading first
+    has_oldtex = 0;
+  }
+
+  glGenTextures(1, &wallpaper_tex_new);
+  glBindTexture(GL_TEXTURE_2D, wallpaper_tex_new);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, img_w, img_h, 0, GL_RGBA,
                GL_UNSIGNED_BYTE, pixels);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -48,6 +62,16 @@ int gl_load_texture(GL *g, const char *path) {
   glBindTexture(GL_TEXTURE_2D, 0);
 
   stbi_image_free(pixels);
+
+  // starting transition
+  if (has_oldtex) {
+    transition_progress = 0.0f;
+    transitioning = 1;
+    printf("Transition started! progress=0.0\n"); // DEBUG
+  } else {
+    transition_progress = 1.0f;
+    transitioning = 0;
+  }
   return 1;
 }
 // compiling shaders from source code

@@ -17,6 +17,21 @@
 #include <wlr-layer-shell-unstable-v1-client-protocol.h>
 #define WLSOCK_PATH "/tmp/wallski.sock"
 
+// types of transitioning
+typedef enum { TRANS_WIPE = 0, TRANS_SHATTER, TRANS_FADE } TTT;
+TTT current_t = TRANS_WIPE;
+
+// setter
+void gl_set_transition(const char *name) {
+  if (strcmp(name, "shatter") == 0) {
+    current_t = TRANS_SHATTER;
+  } else if (strcmp(name, "fade") == 0) {
+    current_t = TRANS_FADE;
+  } else {
+    current_t = TRANS_WIPE;
+  }
+}
+
 // caching
 const char *get_cache_file() {
   const char *xdg = getenv("XDG_CACHE_HOME");
@@ -221,21 +236,57 @@ int gl_init(GL *g, WL *w) {
 
 void gl_draw(GL *i) {
   glClear(GL_COLOR_BUFFER_BIT);
-  if (wallpaper_tex) {
-    glUseProgram(i->prog);
-    glBindBuffer(GL_ARRAY_BUFFER, i->vbo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, i->ebo);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
-                          (void *)0);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
-                          (void *)(2 * sizeof(float)));
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, wallpaper_tex);
-    glUniform1f(glGetUniformLocation(i->prog, "tex"), 0);
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+  glUseProgram(i->prog);
+  glBindBuffer(GL_ARRAY_BUFFER, i->vbo);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, i->ebo);
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
+  glEnableVertexAttribArray(1);
+  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
+                        (void *)(2 * sizeof(float)));
+
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D,
+                wallpaper_tex_old ? wallpaper_tex_old : wallpaper_tex_new);
+  glUniform1i(glGetUniformLocation(i->prog, "tex_old"), 0);
+
+  glActiveTexture(GL_TEXTURE1);
+  glBindTexture(GL_TEXTURE_2D, wallpaper_tex_new);
+  glUniform1i(glGetUniformLocation(i->prog, "tex_new"), 1);
+
+  if (transitioning && has_oldtex) {
+    // glActiveTexture(GL_TEXTURE0);
+    // glBindTexture(GL_TEXTURE_2D, wallpaper_tex_old);
+    // glUniform1i(glGetUniformLocation(i->prog, "tex_old"), 0);
+    //
+    // glActiveTexture(GL_TEXTURE1);
+    // glBindTexture(GL_TEXTURE_2D, wallpaper_tex_new);
+    // glUniform1i(glGetUniformLocation(i->prog, "tex_new"), 1);
+
+    // wipe
+    transition_progress += 0.05f; // speed
+    if (transition_progress >= 1.0f) {
+      transition_progress = 1.0f;
+      transitioning = 0;
+      glDeleteTextures(1, &wallpaper_tex_old);
+      wallpaper_tex_old = 0;
+      has_oldtex = 0;
+    }
+    // glUniform1f(glGetUniformLocation(i->prog, "u_progress"),
+    // transition_progress);
+    // glUniform1i(glGetUniformLocation(i->prog, "u_type"),
+    // (int)current_t);
+  } else {
+    // glActiveTexture(GL_TEXTURE0);
+    // glBindTexture(GL_TEXTURE_2D, wallpaper_tex_new);
+    // glUniform1i(glGetUniformLocation(i->prog, "tex_new"), 0);
+    // glUniform1f(glGetUniformLocation(i->prog, "u_progress"), 1.0f);
+    transition_progress = 1.0f;
   }
+  glUniform1f(glGetUniformLocation(i->prog, "u_progress"), transition_progress);
+  glUniform1i(glGetUniformLocation(i->prog, "u_type"), (int)current_t);
+
+  glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
   eglSwapBuffers(i->dsp, i->surf);
 }
 
@@ -300,10 +351,17 @@ int main() {
   // shaders
   /*
    cp  the project shaders to the relevant directory so it could match here
-   while contributing [note]
+   while contributing [note] -> while creating production grade binary so that
+   other can use , this should be uncommented
   */
   char *vert_src = read_file("/usr/share/wallski/assets/wallpaper.vert");
   char *frag_src = read_file("/usr/share/wallski/assets/wallpaper.frag");
+
+  // uncomment this while development as you wil be working with shaders and u
+  // cant simple always mv this and that so
+  // char *vert_src = read_file("../assets/wallpaper.vert");
+  // char *frag_src = read_file("../assets/wallpaper.frag");
+
   if (!vert_src || !frag_src) {
     return 1;
   }
@@ -323,18 +381,34 @@ int main() {
       int n = read(client, buf, sizeof(buf) - 1);
       if (n > 0) {
         buf[n] = '\0';
-        if (strncmp(buf, "--set", 5) == 0) {
-          char *path = buf + 5;
-          // skip whitespace
-          while (*path == ' ') {
-            path++;
+        char *path = NULL;
+        char *trans = "wipe";
+        char *tok = strtok(buf, " ");
+        // skip whitespace
+        while (tok) {
+          if (strcmp(tok, "--set") == 0) {
+            tok = strtok(NULL, " ");
+            if (tok) {
+              path = tok;
+            }
+          } else if (strcmp(tok, "--transition") == 0) {
+            tok = strtok(NULL, " ");
+            if (tok) {
+              trans = tok;
+            }
           }
+          tok = strtok(NULL, " ");
+        }
+        if (path) {
+          gl_set_transition(trans);
           gl_load_texture(&g, path);
-          save_current_wallpaper(path); // when we change wall, save it to cache
-                                        // for using it persistantly
+          save_current_wallpaper(path); // when we change wall, save it to
         }
       }
       close(client);
+    }
+    if (!transitioning) {
+      usleep(16666); // 60fps
     }
   }
   gl_quit(&g);
