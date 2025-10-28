@@ -26,7 +26,7 @@ tied to wayland window
 */
 int gl_init(GL *g, WL *wl);
 // making current context, openegl drawing stuffs, displaying
-void gl_draw(GL *g);
+void gl_draw(GL *g, WL *w);
 void gl_quit(GL *g); // destroy egl surface, context, and the window
 
 // transition globals
@@ -36,6 +36,11 @@ float transition_progress = 1.0f;
 int transitioning = 0;
 int has_oldtex = 0;
 
+// wallpaper overview
+int wallpaper_width = 0;     // width of loaded wall
+const int view_width = 1920; // viewport width
+extern float cursor_x;
+
 // loading the image from path to openegl as texture
 int gl_load_texture(GL *g, const char *path) {
   int img_w, img_h, img_ch;
@@ -44,6 +49,8 @@ int gl_load_texture(GL *g, const char *path) {
     fprintf(stderr, "failed to load the image from %s\n", path);
     return 0;
   }
+  printf("Loaded wallpaper %s: %dx%d\n", path, img_w, img_h);
+  wallpaper_width = img_w;
   // preserving the old pic
   if (wallpaper_tex_new != 0) {
     wallpaper_tex_old = wallpaper_tex_new;
@@ -87,6 +94,8 @@ GLuint compile_shader(GLenum t, const char *s) {
     glGetShaderInfoLog(shader, 512, NULL, log);
     fprintf(stderr, "error: %s\n", log);
   }
+  printf("shader compiled (type %s): %u\n",
+         t == GL_VERTEX_SHADER ? "VERTEX" : "FRAGMENT", shader);
   return shader;
 }
 
@@ -104,9 +113,11 @@ GLuint create_program(const char *vsrc, const char *fsrc) {
   glGetProgramiv(prog, GL_LINK_STATUS, &success);
   if (!success) {
     char log[512];
-    glGetShaderInfoLog(prog, 512, NULL, log);
+    glGetProgramInfoLog(prog, 512, NULL, log);
     fprintf(stderr, "error: %s\n", log);
   }
+
+  printf("program linked: %u", prog);
   glDeleteShader(v);
   glDeleteShader(f);
   return prog;

@@ -4,21 +4,24 @@
 #include <EGL/eglplatform.h>
 #include <GLES2/gl2.h>
 #include <fcntl.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
 #include <wayland-client-core.h>
 #include <wayland-client-protocol.h>
 #include <wayland-egl-core.h>
+#include <wayland-util.h>
 #include <wlr-layer-shell-unstable-v1-client-protocol.h>
 #define WLSOCK_PATH "/tmp/wallski.sock"
 
 // types of transitioning
-typedef enum { TRANS_WIPE = 0, TRANS_SHATTER, TRANS_FADE } TTT;
+typedef enum { TRANS_WIPE = 0, TRANS_SHATTER, TRANS_FADE, TRANS_RIPPLE } TTT;
 TTT current_t = TRANS_WIPE;
 
 // setter
@@ -27,6 +30,8 @@ void gl_set_transition(const char *name) {
     current_t = TRANS_SHATTER;
   } else if (strcmp(name, "fade") == 0) {
     current_t = TRANS_FADE;
+  } else if (strcmp(name, "ripple") == 0) {
+    current_t = TRANS_RIPPLE;
   } else {
     current_t = TRANS_WIPE;
   }
@@ -80,6 +85,109 @@ char *load_current_wallpaper() {
   return NULL;
 }
 
+float cursor_x = 0.5f; // 0 is  left and 1 is right [we initilize at 0.5 meaning
+                       // center tyakkai]
+static void pointer_motion(void *data, struct wl_pointer *p, uint32_t time,
+                           wl_fixed_t x, wl_fixed_t y) {
+  WL *wl = (WL *)data;
+  if (wl->w > 0) {
+    static float target_cursor = 0.5f;
+    target_cursor = wl_fixed_to_double(x) / wl->w;
+    if (target_cursor < 0.0f) {
+      target_cursor = 0.0f;
+    }
+    if (target_cursor > 1.0f) {
+      target_cursor = 1.0f;
+    }
+    /*
+    offbrand lerp, cause someone suggested [linear interpolation]
+    creating smoooth motion instead than instant jumps -> moving cursor_x to
+    real mouse position.
+    */
+    float speed = 0.05f;
+    cursor_x += (target_cursor - cursor_x) * speed;
+  }
+}
+
+static void pointer_enter(void *data, struct wl_pointer *p, uint32_t serial,
+                          struct wl_surface *surface, wl_fixed_t sx,
+                          wl_fixed_t sy) {
+  (void)data;
+  (void)p;
+  (void)serial;
+  (void)surface;
+  (void)sx;
+  (void)sy;
+}
+static void pointer_leave(void *data, struct wl_pointer *p, uint32_t serial,
+                          struct wl_surface *surface) {
+
+  (void)data;
+  (void)p;
+  (void)serial;
+  (void)surface;
+}
+static void pointer_button(void *data, struct wl_pointer *p, uint32_t serial,
+                           uint32_t time, uint32_t button, uint32_t state) {
+
+  (void)data;
+  (void)p;
+  (void)serial;
+  (void)time;
+  (void)button;
+  (void)state;
+}
+static void pointer_axis(void *data, struct wl_pointer *p, uint32_t time,
+                         uint32_t axis, wl_fixed_t value) {
+
+  (void)data;
+  (void)p;
+  (void)time;
+  (void)axis;
+  (void)value;
+}
+
+// callbacks
+static void pointer_frame(void *data, struct wl_pointer *p) {
+  (void)data;
+  (void)p;
+}
+
+static void pointer_axis_source(void *data, struct wl_pointer *p,
+                                uint32_t axis_source) {
+  (void)data;
+  (void)p;
+  (void)axis_source;
+}
+
+static void pointer_axis_stop(void *data, struct wl_pointer *p, uint32_t time,
+                              uint32_t axis) {
+  (void)data;
+  (void)p;
+  (void)time;
+  (void)axis;
+}
+
+static void pointer_axis_discrete(void *data, struct wl_pointer *p,
+                                  uint32_t axis, int32_t discrete) {
+  (void)data;
+  (void)p;
+  (void)axis;
+  (void)discrete;
+}
+
+// structure of pointer events assigning to each callbacks
+static const struct wl_pointer_listener pointer_listener = {
+    .motion = pointer_motion,
+    .enter = pointer_enter,
+    .leave = pointer_leave,
+    .button = pointer_button,
+    .axis = pointer_axis,
+    .frame = pointer_frame,
+    .axis_source = pointer_axis_source,
+    .axis_stop = pointer_axis_stop,
+    .axis_discrete = pointer_axis_discrete};
+
 // registry callbacks
 /*
  - userdata
@@ -101,6 +209,12 @@ static void reg_add(void *data, struct wl_registry *r, uint32_t name,
   } else if (strcmp(iface, zwlr_layer_shell_v1_interface.name) == 0) {
     wl->lshell =
         wl_registry_bind(r, name, &zwlr_layer_shell_v1_interface, 1); // v1
+  } else if (strcmp(iface, "wl_seat") == 0) {
+    wl->seat = wl_registry_bind(r, name, &wl_seat_interface, 5); // v5
+    wl->pointer = wl_seat_get_pointer(wl->seat);
+    if (wl->pointer) {
+      wl_pointer_add_listener(wl->pointer, &pointer_listener, wl);
+    }
   }
 }
 
@@ -166,6 +280,13 @@ int wl_init(WL *wl) {
   wl_registry_add_listener(wl->reg, &reg_lis, wl);
   wl_display_roundtrip(wl->dsp); // populate the reg_ad with compositor
                                  // interface, layershell, output interface
+
+  // uint32_t seat_id = 0;
+  // struct wl_seat *seat =
+  //     wl_registry_bind(wl->reg, seat_id, &wl_seat_interface, 5); // v5
+  // struct wl_pointer *pointer = wl_seat_get_pointer(seat);
+  // wl_pointer_add_listener(pointer, &pointer_listener, wl);
+
   wl->surf = wl_compositor_create_surface(
       wl->comp); // wayland surface for rendering stuff
   wl->lsurf = zwlr_layer_shell_v1_get_layer_surface(
@@ -234,7 +355,7 @@ int gl_init(GL *g, WL *w) {
 //   eglSwapBuffers(g->dsp, g->surf);
 // }
 
-void gl_draw(GL *i) {
+void gl_draw(GL *i, WL *w) {
   glClear(GL_COLOR_BUFFER_BIT);
   glUseProgram(i->prog);
   glBindBuffer(GL_ARRAY_BUFFER, i->vbo);
@@ -253,6 +374,11 @@ void gl_draw(GL *i) {
   glActiveTexture(GL_TEXTURE1);
   glBindTexture(GL_TEXTURE_2D, wallpaper_tex_new);
   glUniform1i(glGetUniformLocation(i->prog, "tex_new"), 1);
+
+  glUniform1f(glGetUniformLocation(i->prog, "u_cursor"), cursor_x);
+  glUniform1f(glGetUniformLocation(i->prog, "u_img_width"),
+              (float)wallpaper_width);
+  glUniform1f(glGetUniformLocation(i->prog, "u_view_width"), (float)w->w);
 
   if (transitioning && has_oldtex) {
     // glActiveTexture(GL_TEXTURE0);
@@ -372,7 +498,13 @@ int main() {
 
   while (w.run) {
     wl_loop(&w);
-    gl_draw(&g);
+    gl_draw(&g, &w);
+
+    // debugging
+    // static int frame = 0;
+    // if (++frame % 60 == 0) {
+    //   printf("frame [%d]", frame);
+    // }
 
     // check commands
     int client = accept(dsock, NULL, NULL);

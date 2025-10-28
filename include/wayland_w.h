@@ -14,6 +14,9 @@ typedef struct {
   struct zwlr_layer_surface_v1 *lsurf; // attachment
 
   int w, h, cfg, run; // cfg: configuration flag
+
+  struct wl_seat *seat;       // input seats
+  struct wl_pointer *pointer; // cursor tracking
 } WL;
 
 int wl_init(WL *wl);
