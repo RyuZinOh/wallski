@@ -1,6 +1,13 @@
 ### Wallski
 My own wallpaper engine made on c for wayland compositor
 
+https://github.com/user-attachments/assets/5c48b51e-9046-4619-9c74-6152fe0165d9
+
+
+
+
+
+
 ## [usage]
 - so build this or u can use the binary in the project release to use it where u will get a daemon and a client 
 - daemon is used to listen the commands from cilent and do stuff accordingly 
@@ -45,4 +52,6 @@ https://github.com/user-attachments/assets/f597c350-6eca-410e-ab8a-113d4e79250a
 https://github.com/user-attachments/assets/e36599a6-9787-4b1c-b5e1-6045d96f1006
 
 4. ripple
+
+https://github.com/user-attachments/assets/157ee903-b3b6-4785-ac59-93bc1fdc8a96
 
