@@ -21,7 +21,13 @@
 #define WLSOCK_PATH "/tmp/wallski.sock"
 
 // types of transitioning
-typedef enum { TRANS_WIPE = 0, TRANS_SHATTER, TRANS_FADE, TRANS_RIPPLE } TTT;
+typedef enum {
+  TRANS_WIPE = 0,
+  TRANS_SHATTER,
+  TRANS_FADE,
+  TRANS_RIPPLE,
+  TRANS_ZOOM
+} TTT;
 TTT current_t = TRANS_WIPE;
 
 // setter
@@ -32,6 +38,8 @@ void gl_set_transition(const char *name) {
     current_t = TRANS_FADE;
   } else if (strcmp(name, "ripple") == 0) {
     current_t = TRANS_RIPPLE;
+  } else if (strcmp(name, "zoom") == 0) {
+    current_t = TRANS_ZOOM;
   } else {
     current_t = TRANS_WIPE;
   }
@@ -480,13 +488,13 @@ int main() {
    while contributing [note] -> while creating production grade binary so that
    other can use , this should be uncommented
   */
-  char *vert_src = read_file("/usr/share/wallski/assets/wallpaper.vert");
-  char *frag_src = read_file("/usr/share/wallski/assets/wallpaper.frag");
+  // char *vert_src = read_file("/usr/share/wallski/assets/wallpaper.vert");
+  // char *frag_src = read_file("/usr/share/wallski/assets/wallpaper.frag");
 
   // uncomment this while development as you wil be working with shaders and u
   // cant simple always mv this and that so
-  // char *vert_src = read_file("../assets/wallpaper.vert");
-  // char *frag_src = read_file("../assets/wallpaper.frag");
+  char *vert_src = read_file("../assets/wallpaper.vert");
+  char *frag_src = read_file("../assets/wallpaper.frag");
 
   if (!vert_src || !frag_src) {
     return 1;
