@@ -45,9 +45,9 @@ https://github.com/user-attachments/assets/9bd00b7a-6bfe-48d7-8a5c-be1c3f7dc480
 
 2. shatter
 
-https://github.com/user-attachments/assets/f597c350-6eca-410e-ab8a-113d4e79250a
+https://github.com/user-attachments/assets/0906f243-60d6-47a8-9664-82fafb728984
 
-3. wipe
+4. wipe
 
 https://github.com/user-attachments/assets/e36599a6-9787-4b1c-b5e1-6045d96f1006
 
@@ -55,3 +55,6 @@ https://github.com/user-attachments/assets/e36599a6-9787-4b1c-b5e1-6045d96f1006
 
 https://github.com/user-attachments/assets/157ee903-b3b6-4785-ac59-93bc1fdc8a96
 
+5.zoom
+
+https://github.com/user-attachments/assets/dbc5f860-b9bc-4a5d-aa00-89e408d22848
