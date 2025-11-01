@@ -1,3 +1,4 @@
+#include "../include/colors_w.h"
 #include "../include/graphics_w.h"
 #include "../include/wayland_w.h"
 #include <EGL/egl.h>
@@ -58,6 +59,18 @@ const char *get_cache_file() {
   return path;
 }
 
+const char *get_palete_file() {
+  const char *xdg = getenv("XDG_CACHE_HOME");
+  static char path[512];
+  // if xdg exists else we know how to hard code
+  if (xdg) {
+    snprintf(path, sizeof(path), "%s/wallski/palette", xdg);
+  } else {
+    snprintf(path, sizeof(path), "%s/.cache/wallski/palette", getenv("HOME"));
+  }
+  return path;
+}
+
 void save_current_wallpaper(const char *wallpaper) {
   const char *file = get_cache_file(); // get the full path returned by upper
   char dir[512];
@@ -73,6 +86,26 @@ void save_current_wallpaper(const char *wallpaper) {
     fprintf(f, "%s\n", wallpaper);
     fclose(f);
   }
+}
+
+void save_palette(const char *wallpaper) {
+  const char *file = get_palete_file(); // get the full path returned by upper
+  char dir[512];
+  strncpy(dir, file, sizeof(dir));
+  char *slash = strrchr(dir, '/'); // for seperation in linux dir  system
+  if (slash) {
+    *slash = 0;
+    mkdir(dir, 0755);
+  }
+  FILE *f = fopen(file, "w");
+  // write current stuff to that path init
+  if (!f) {
+    return;
+  }
+  Palette pal = extract_palette(wallpaper);
+  fprintf(f, "primary=#%06X\n", pal.primary);
+  fprintf(f, "secondary=#%06X\n", pal.secondary);
+  fclose(f);
 }
 
 // retuning stuff if found else NULL
@@ -93,6 +126,25 @@ char *load_current_wallpaper() {
   return NULL;
 }
 
+Palette load_palette() {
+  Palette p = {0, 0};
+  const char *file = get_palete_file();
+  FILE *f = fopen(file, "r");
+  if (!f) {
+    return p;
+  }
+  char line[128];
+  while (fgets(line, sizeof(line), f)) {
+    if (sscanf(line, "primary=#%06X", &p.primary) == 1) {
+      continue;
+    }
+    if (sscanf(line, "secondary=#%06X", &p.secondary) == 1) {
+      continue;
+    }
+  }
+  fclose(f);
+  return p;
+}
 float cursor_x = 0.5f; // 0 is  left and 1 is right [we initilize at 0.5 meaning
                        // center tyakkai]
 static void pointer_motion(void *data, struct wl_pointer *p, uint32_t time,
@@ -543,6 +595,7 @@ int main() {
           gl_set_transition(trans);
           gl_load_texture(&g, path);
           save_current_wallpaper(path); // when we change wall, save it to
+          save_palette(path);
         }
       }
       close(client);
