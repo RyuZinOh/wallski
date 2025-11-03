@@ -17,6 +17,11 @@ typedef struct {
 
   struct wl_seat *seat;       // input seats
   struct wl_pointer *pointer; // cursor tracking
+
+  struct wl_shm *shm;
+  struct wl_cursor_theme *cursor_theme;
+  struct wl_cursor *default_cursor;
+  struct wl_surface *cursor_surface;
 } WL;
 
 int wl_init(WL *wl);

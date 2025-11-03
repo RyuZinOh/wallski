@@ -20,6 +20,7 @@
 #include <wayland-util.h>
 #include <wlr-layer-shell-unstable-v1-client-protocol.h>
 #define WLSOCK_PATH "/tmp/wallski.sock"
+#include <wayland-cursor.h>
 
 // types of transitioning
 typedef enum {
@@ -172,12 +173,16 @@ static void pointer_motion(void *data, struct wl_pointer *p, uint32_t time,
 static void pointer_enter(void *data, struct wl_pointer *p, uint32_t serial,
                           struct wl_surface *surface, wl_fixed_t sx,
                           wl_fixed_t sy) {
-  (void)data;
-  (void)p;
-  (void)serial;
-  (void)surface;
-  (void)sx;
-  (void)sy;
+  WL *wl = (WL *)data;
+  if (wl->default_cursor && wl->cursor_surface) {
+    struct wl_cursor_image *image = wl->default_cursor->images[0];
+    wl_pointer_set_cursor(p, serial, wl->cursor_surface, image->hotspot_x,
+                          image->hotspot_y);
+    wl_surface_attach(wl->cursor_surface, wl_cursor_image_get_buffer(image), 0,
+                      0);
+    wl_surface_damage(wl->cursor_surface, 0, 0, image->width, image->height);
+    wl_surface_commit(wl->cursor_surface);
+  }
 }
 static void pointer_leave(void *data, struct wl_pointer *p, uint32_t serial,
                           struct wl_surface *surface) {
@@ -275,6 +280,8 @@ static void reg_add(void *data, struct wl_registry *r, uint32_t name,
     if (wl->pointer) {
       wl_pointer_add_listener(wl->pointer, &pointer_listener, wl);
     }
+  } else if (strcmp(iface, wl_shm_interface.name) == 0) {
+    wl->shm = wl_registry_bind(r, name, &wl_shm_interface, 1);
   }
 }
 
@@ -341,6 +348,21 @@ int wl_init(WL *wl) {
   wl_display_roundtrip(wl->dsp); // populate the reg_ad with compositor
                                  // interface, layershell, output interface
 
+  // initialize cursor [for pointer]
+  if (wl->shm) {
+    wl->cursor_theme = wl_cursor_theme_load(NULL, 24, wl->shm);
+    if (wl->cursor_theme) {
+      wl->default_cursor =
+          wl_cursor_theme_get_cursor(wl->cursor_theme, "default");
+      if (!wl->default_cursor) {
+        wl->default_cursor =
+            wl_cursor_theme_get_cursor(wl->cursor_theme, "left_ptr");
+      }
+      if (wl->default_cursor) {
+        wl->cursor_surface = wl_compositor_create_surface(wl->comp);
+      }
+    }
+  }
   // uint32_t seat_id = 0;
   // struct wl_seat *seat =
   //     wl_registry_bind(wl->reg, seat_id, &wl_seat_interface, 5); // v5
@@ -373,7 +395,16 @@ int wl_init(WL *wl) {
 void wl_loop(WL *wl) {
   wl_display_dispatch_pending(wl->dsp);
 } // check if the wayland server running
-void wl_quit(WL *wl) { wl_display_disconnect(wl->dsp); }
+void wl_quit(WL *wl) {
+  if (wl->cursor_surface) {
+    wl_surface_destroy(wl->cursor_surface);
+  }
+  if (wl->cursor_theme) {
+    wl_cursor_theme_destroy(wl->cursor_theme);
+  }
+
+  wl_display_disconnect(wl->dsp);
+}
 
 // setting up rendering context on wl surface[linking things with opengl]
 int gl_init(GL *g, WL *w) {
@@ -540,13 +571,13 @@ int main() {
    while contributing [note] -> while creating production grade binary so that
    other can use , this should be uncommented
   */
-  // char *vert_src = read_file("/usr/share/wallski/assets/wallpaper.vert");
-  // char *frag_src = read_file("/usr/share/wallski/assets/wallpaper.frag");
+  char *vert_src = read_file("/usr/share/wallski/assets/wallpaper.vert");
+  char *frag_src = read_file("/usr/share/wallski/assets/wallpaper.frag");
 
   // uncomment this while development as you wil be working with shaders and u
   // cant simple always mv this and that so
-  char *vert_src = read_file("../assets/wallpaper.vert");
-  char *frag_src = read_file("../assets/wallpaper.frag");
+  // char *vert_src = read_file("../assets/wallpaper.vert");
+  // char *frag_src = read_file("../assets/wallpaper.frag");
 
   if (!vert_src || !frag_src) {
     return 1;

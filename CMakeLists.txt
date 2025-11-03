@@ -28,6 +28,7 @@ add_executable(wallski-daemon
 
 target_link_libraries(wallski-daemon
     wayland-client
+    wayland-cursor
     wayland-egl
     EGL
     GLESv2
